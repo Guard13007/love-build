@@ -1,4 +1,4 @@
-local version = "v1.0.0"
+local version = "v2.0.0"
 local check = setmetatable({
   ["love-release"] = [[    # note: none of the stdout/stderr redirection works
     # note: ! command -v luarocks somehow doesn't work
@@ -87,7 +87,7 @@ run_safe = function(fn)
   if success and result then
     return result
   end
-  return error("Cannot resolve a dependency, please check the required dependencies and install missing dependencies.")
+  return error("Cannot resolve a dependency, please check the required dependencies and install missing dependencies. Originating error: " .. tostring(result))
 end
 local file_exists
 file_exists = function(name)
@@ -107,7 +107,8 @@ local opts = run_safe(function()
   parser:description("A simple wrapper for love-release, adding default options and builds for major OSes, extra options, and automated uploading to Itch.io via butler.")
   parser:argument("source", "Source directory.", "./src")
   parser:argument("build_dir", "Directory to place builds in.", "./builds")
-  parser:flag("--dry-run", "Skip uploading via butler, even if configured.")
+  parser:flag("--dry-run", "Do everything up to calling love-release, print the command to be sent to love-release, and stop.")
+  parser:flag("--skip-butler", "Skip uploading via butler, even if configured.")
   parser:option("-v --build-version", "Specify version number of build.")
   parser:option("-l --love-version", "Specify LÖVE version to use.", "11.1")
   parser:option({
@@ -142,24 +143,24 @@ local opts = run_safe(function()
   parser:flag("--no-overwrite-version", "Do not overwrite version.lua in source directory with a file returning the current version.")
   parser:flag("--keep-moonscript", "Keep .moon files in builds.")
   parser:flag("-M", "No effect, Mac OS applications are built by default. (Use --no-mac to disable.)")
-  parser:option("-a --author", "TODO")
+  parser:option("-a --author", "Author's full name.")
   parser:option({
     name = "-d --desc",
-    description = "TODO",
+    description = "Project description.",
     target = "description"
   })
-  parser:option("-e --email", "TODO")
-  parser:option("-p --package", "TODO")
-  parser:option("-t --title", "TODO")
-  parser:option("-u", "--url", "TODO")
-  parser:option("-uti", "TODO")
+  parser:option("-e --email", "Author's email.")
+  parser:option("-p --package", "Package/Executable/Command name.")
+  parser:option("-t --title", "Project title.")
+  parser:option("-u", "--url", "Project homepage URL.")
+  parser:option("-uti", "Project Uniform Type Identifier (it's a Mac thing).")
   parser:option({
     name = "-I --include-file",
     description = "Include specific files (alongside executables, not within). (Does not apply to Debian builds.)",
     count = "*"
   })
   parser:flag("--version", "Print version of love-build and exit.")
-  parser:epilog("For more info, see URL")
+  parser:epilog("For more info, see https://github.com/Guard13007/love-build")
   return parser:parse()
 end)
 if opts.version then
@@ -191,7 +192,7 @@ local conf = run_safe(function()
 end)
 conf.releases = conf.releases or { }
 conf.build = conf.build or { }
-if conf.releases.compile == false or not opts.no_luajit_bytecode then
+if conf.releases.compile ~= false or not opts.no_luajit_bytecode then
   check("luajit")
   options.add("-b")
 end
@@ -219,9 +220,28 @@ if opts.build_version then
   options.add("-v " .. tostring(opts.build_version))
 end
 if (not opts.no_overwrite_version) and opts.build_version and file_exists(tostring(opts.source) .. "/version.lua") then
-  local file = assert(io.open(tostring(opts.source) .. "/version.lua"), "Unable to open " .. tostring(opts.source) .. "/version.lua to update version information!")
+  local file = assert(io.open(tostring(opts.source) .. "/version.lua", "w"), "Unable to open " .. tostring(opts.source) .. "/version.lua to update version information!")
   file:write("return \"" .. tostring(opts.build_version:gsub('"', '\\"')) .. "\"\n")
   file:close()
+end
+opts.author = opts.author or conf.releases.author
+opts.description = opts.description or conf.releases.description
+opts.email = opts.email or conf.releases.email
+opts.package = opts.package or conf.releases.package
+opts.title = opts.title or conf.releases.title
+opts.url = opts.url or conf.releases.homepage
+opts.uti = opts.uti or conf.releases.identifier
+if not (opts.uti) then
+  opts.uti = conf.releases.homepage or conf.releases.author or conf.releases.email
+  local part2 = conf.releases.package or conf.releases.title or conf.identity
+  if opts.uti then
+    opts.uti = opts.uti .. "." .. tostring(part2)
+  else
+    opts.uti = part2
+  end
+  if opts.uti then
+    opts.uti = opts.util:gsub("%W", "%.")
+  end
 end
 if not (opts.keep_moonscript) then
   options.add("-x .-%.moon$")
@@ -258,9 +278,38 @@ end
 if conf.build.macos ~= false and conf.build.osx ~= false and not opts.no_mac then
   options.add("-M")
 end
+if opts.author then
+  options.add("-a " .. tostring(opts.author))
+end
+if opts.description then
+  options.add("-d " .. tostring(opts.description))
+end
+if opts.email then
+  options.add("-e " .. tostring(opts.email))
+end
+if opts.package then
+  options.add("-p " .. tostring(opts.package))
+end
+if opts.title then
+  options.add("-t " .. tostring(opts.title))
+end
+if opts.url then
+  options.add("-u " .. tostring(opts.url))
+end
+if opts.uti then
+  options.add("-uti " .. tostring(opts.uti))
+end
 options.add(opts.build_dir)
 options.add(opts.source)
-print("love-release " .. tostring(table.concat(options, " ")))
-if not (opts.dry_run) then
-  return nil
+local command = "love-release " .. tostring(table.concat(options, " "))
+if opts.dry_run then
+  print(command)
+  os.exit(0)
+else
+  os.execute(command)
+end
+if not (opts.skip_butler) then
+  check("butler")
+  print("butler upload and -I option not implemented yet!")
+  return os.exit(1)
 end

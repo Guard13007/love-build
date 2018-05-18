@@ -1,4 +1,4 @@
-version = "v1.0.0"
+version = "v2.0.0" -- using semantic versioning fyi :P
 
 check = setmetatable {
   -- shell scripts to check for dependencies and install them
@@ -93,7 +93,7 @@ run_safe = (fn) ->
   success, result = pcall fn
   return result if success and result
   -- error "Required dependencies were just installed, please run your command again."
-  error "Cannot resolve a dependency, please check the required dependencies and install missing dependencies."
+  error "Cannot resolve a dependency, please check the required dependencies and install missing dependencies. Originating error: #{result}"
 
 file_exists = (name) ->
   if file = io.open name
@@ -114,7 +114,8 @@ opts = run_safe ->
   parser\argument "source", "Source directory.", "./src"
   parser\argument "build_dir", "Directory to place builds in.", "./builds"
 
-  parser\flag "--dry-run", "Skip uploading via butler, even if configured."
+  parser\flag "--dry-run", "Do everything up to calling love-release, print the command to be sent to love-release, and stop."
+  parser\flag "--skip-butler", "Skip uploading via butler, even if configured."
 
   parser\option "-v --build-version", "Specify version number of build."
   parser\option "-l --love-version", "Specify LÖVE version to use.", "11.1"
@@ -145,16 +146,16 @@ opts = run_safe ->
   parser\flag "--keep-moonscript", "Keep .moon files in builds."
 
   parser\flag "-M", "No effect, Mac OS applications are built by default. (Use --no-mac to disable.)"
-  parser\option "-a --author", "TODO"
+  parser\option "-a --author", "Author's full name."
   parser\option
     name: "-d --desc"
-    description: "TODO"
+    description: "Project description."
     target: "description"
-  parser\option "-e --email", "TODO"
-  parser\option "-p --package", "TODO"
-  parser\option "-t --title", "TODO"
-  parser\option "-u", "--url", "TODO"
-  parser\option "-uti", "TODO"
+  parser\option "-e --email", "Author's email."
+  parser\option "-p --package", "Package/Executable/Command name."
+  parser\option "-t --title", "Project title."
+  parser\option "-u", "--url", "Project homepage URL."
+  parser\option "-uti", "Project Uniform Type Identifier (it's a Mac thing)."
 
   parser\option
     name: "-I --include-file"
@@ -163,9 +164,7 @@ opts = run_safe ->
 
   parser\flag "--version", "Print version of love-build and exit."
 
-  -- parser\epilog "Dependencies: love-release, moonscript (for moonscript source code), butler (when channels are specified)"
-  -- Too many Dependencies to list here
-  parser\epilog "For more info, see URL" --TODO
+  parser\epilog "For more info, see https://github.com/Guard13007/love-build"
 
   return parser\parse!
 
@@ -193,7 +192,7 @@ conf = run_safe -> require("loadconf").parse_file("#{opts.source}/conf.lua") or 
 conf.releases or= {}
 conf.build or= {}
 
-if conf.releases.compile == false or not opts.no_luajit_bytecode
+if conf.releases.compile != false or not opts.no_luajit_bytecode
   check "luajit"
   options.add "-b"
 
@@ -216,33 +215,30 @@ if opts.build_version and not opts.no_timestamp
 
 options.add "-v #{opts.build_version}" if opts.build_version
 
+-- TODO allow writing to this file if it doesn't exist!
 if (not opts.no_overwrite_version) and opts.build_version and file_exists "#{opts.source}/version.lua"
-  file = assert io.open("#{opts.source}/version.lua"), "Unable to open #{opts.source}/version.lua to update version information!"
+  file = assert io.open("#{opts.source}/version.lua", "w"), "Unable to open #{opts.source}/version.lua to update version information!"
   file\write "return \"#{opts.build_version\gsub '"', '\\"'}\"\n"
   file\close!
 
--- -- identifier precedence:
--- --  specified on command-line
--- --  specified in config.releases.identifier
--- --  TODO generated from first available:
--- --   config.releases.homepage|config.releases.author|config.releases.email, config.releases.package|config.releases.title|config.identity
--- --  generated from config.identity (TODO remove this when the above generator is done)
--- config.releases.identifier = opts.uti if opts.uti
--- config.releases.identifier or= config.identity and config.identity\gsub "%W", ""
---
--- -- NOTE temporary reference for above note about generation of UTIs
--- -- t.releases = {
--- --   title = "Test Package",
--- --   package = "TestPackage",
--- --   author = "Paul L",
--- --   email = "paul.liverman.iii@gmail.com",
--- --   description = "A test package.",
--- --   homepage = "https://example.com",
--- -- }
+opts.author or= conf.releases.author
+opts.description or= conf.releases.description
+opts.email or= conf.releases.email
+opts.package or= conf.releases.package
+opts.title or= conf.releases.title
+opts.url or= conf.releases.homepage
+-- uti not specifiable in conf ?
 
--- TODO implement
---       butler, check for butler, -I, --dry-run, -x, -i
---       handle --include and -i options -> config.build.includePatterns
+opts.uti or= conf.releases.identifier
+unless opts.uti
+  opts.uti = conf.releases.homepage or conf.releases.author or conf.releases.email
+  part2 = conf.releases.package or conf.releases.title or conf.identity
+  if opts.uti
+    opts.uti ..= ".#{part2}"
+  else
+    opts.uti = part2
+
+  opts.uti = opts.util\gsub "%W", "%." if opts.uti
 
 unless opts.keep_moonscript
   options.add "-x .-%.moon$"
@@ -267,10 +263,33 @@ options.add "-W 32" if w32
 options.add "-W 64" if w64
 options.add "-M" if conf.build.macos != false and conf.build.osx != false and not opts.no_mac
 
+options.add "-a #{opts.author}" if opts.author
+options.add "-d #{opts.description}" if opts.description
+options.add "-e #{opts.email}" if opts.email
+options.add "-p #{opts.package}" if opts.package
+options.add "-t #{opts.title}" if opts.title
+options.add "-u #{opts.url}" if opts.url
+options.add "-uti #{opts.uti}" if opts.uti
+
 options.add opts.build_dir
 options.add opts.source
 
-print "love-release #{table.concat options, " "}" -- TEMPORARY PRINTING HOW LOVE-RELEASE WILL BE CALLED
+command = "love-release #{table.concat options, " "}"
+if opts.dry_run
+  print command
+  os.exit 0
+else
+  os.execute command
 
-unless opts.dry_run
-  nil -- TODO upload with butler
+-- TODO implement -I here
+-- -I <- conf.build.includeFiles
+-- TODO figure out how to implement -i or suggest it to be included in love-release?
+-- -i <- conf.build.includePatterns
+-- TODO implement opts.no_love
+
+unless opts.skip_butler
+  check "butler"
+
+  print "butler upload and -I option not implemented yet!"
+  os.exit 1
+  -- TODO upload with butler
