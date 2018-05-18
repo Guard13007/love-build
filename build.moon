@@ -1,4 +1,4 @@
-version = "v2.0.0" -- using semantic versioning fyi :P
+version = "v2.1.0" -- using semantic versioning fyi :P
 
 check = setmetatable {
   -- shell scripts to check for dependencies and install them
@@ -114,63 +114,75 @@ opts = run_safe ->
   parser\argument "source", "Source directory.", "./src"
   parser\argument "build_dir", "Directory to place builds in.", "./builds"
 
-  parser\flag "--dry-run", "Do everything up to calling love-release, print the command to be sent to love-release, and stop."
-  parser\flag "--skip-butler", "Skip uploading via butler, even if configured."
+  parser\group "Testing",
+    parser\flag "--dry-run", "Do everything up to calling love-release, print the command to be sent to love-release, and stop.",
+    parser\flag "--skip-butler", "Skip uploading via butler, even if configured."
 
   parser\option "-v --build-version", "Specify version number of build."
   parser\option "-l --love-version", "Specify LÖVE version to use.", "11.1"
   parser\option
     name: "-W"
     description: "Build Windows executables (32/64 bit). (default: 32)"
-    count: "0-2"
-    args: "0-1"
     target: "windows"
     argname: "32|64"
     default: {{"32"}}
+    count: "0-2"
+    args: "0-1"
   parser\option
     name: "-i --include"
-    description: "(NOT IMPLEMENTED) Include files by Lua pattern (alongside executables, not within). (Does not apply to Debian builds.)"
+    description: "Include files by Lua pattern (alongside executables, not within). (Does not apply to Debian builds.)"
+    argname: "file"
     count: "*"
+    hidden: true
   parser\option
     name: "-x --exclude"
     description: "Exclude files in source directory by Lua pattern."
+    argname: "file"
     count: "*"
   parser\flag "-D --debian", "Build a Debian package. (Not recommended.)"
 
-  parser\flag "-C --no-compile-moonscript", "Do not compile .moon files before building."
-  parser\flag "-B --no-luajit-bytecode", "Do not compile to LuaJIT bytecode."
-  parser\flag "-S --no-timestamp", "Do not append a timestamp to builds."
-  parser\flag "-X --no-mac", "Do not build a Mac OS version."
-  parser\flag "-L --no-love", "Do not build a version with a .love file (intended for Linux distribution)."
-  parser\flag "--no-overwrite-version", "Do not overwrite version.lua in source directory with a file returning the current version."
-  parser\flag "--keep-moonscript", "Keep .moon files in builds."
+  parser\group "Turning off defaults",
+    parser\flag "-C --no-compile-moonscript", "Do not compile .moon files before building.",
+    parser\flag "-B --no-luajit-bytecode", "Do not compile to LuaJIT bytecode.",
+    parser\flag "-S --no-timestamp", "Do not append a timestamp to builds.",
+    parser\flag "-X --no-mac", "Do not build a Mac OS version.",
+    parser\flag "-L --no-love", "Do not build a version with a .love file (intended for Linux distribution).",
+    parser\flag "--no-version-file", "Do not write version.lua in source directory with a file returning the current version.",
+    parser\flag "--no-overwrite-version", "Do not overwrite version.lua in source directory if it already exists.",
+    parser\flag "--keep-moonscript", "Keep .moon files in builds."
 
-  parser\flag "-M", "No effect, Mac OS applications are built by default. (Use --no-mac to disable.)"
-  parser\option "-a --author", "Author's full name."
-  parser\option
-    name: "-d --desc"
-    description: "Project description."
-    target: "description"
-  parser\option "-e --email", "Author's email."
-  parser\option "-p --package", "Package/Executable/Command name."
-  parser\option "-t --title", "Project title."
-  parser\option "-u", "--url", "Project homepage URL."
-  parser\option "-uti", "Project Uniform Type Identifier (it's a Mac thing)."
+  parser\flag
+    name: "-M"
+    description: "No effect, Mac OS applications are built by default. (Use --no-mac to disable.)"
+    hidden: true
+
+  parser\group "Project metadata (love-release options)",
+    parser\option "-a --author", "Author's full name.",
+    parser\option name: "-d --desc", description: "Project description.", target: "description",
+    parser\option "-e --email", "Author's email.",
+    parser\option "-p --package", "Package/Executable/Command name.",
+    parser\option "-t --title", "Project title.",
+    parser\option "-u --url", "Project homepage URL.",
+    parser\option "-uti", "Project Uniform Type Identifier (it's a Mac thing)."
 
   parser\option
     name: "-I --include-file"
     description: "Include specific files (alongside executables, not within). (Does not apply to Debian builds.)"
+    target: "files"
+    argname: "file"
     count: "*"
+    convert: io.open
 
-  parser\flag "--version", "Print version of love-build and exit."
+  parser\flag
+    name: "--version"
+    description: "Print version of love-build and exit."
+    action: ->
+      print "love-build #{version}"
+      os.exit 0
 
-  parser\epilog "For more info, see https://github.com/Guard13007/love-build"
+  parser\epilog "All love-release options are also supported here. For more info, see https://github.com/Guard13007/love-build"
 
   return parser\parse!
-
-if opts.version
-  print "love-build #{version}"
-  os.exit 0
 
 local options
 options = {
@@ -215,11 +227,16 @@ if opts.build_version and not opts.no_timestamp
 
 options.add "-v #{opts.build_version}" if opts.build_version
 
--- TODO allow writing to this file if it doesn't exist!
-if (not opts.no_overwrite_version) and opts.build_version and file_exists "#{opts.source}/version.lua"
+write_version = ->
   file = assert io.open("#{opts.source}/version.lua", "w"), "Unable to open #{opts.source}/version.lua to update version information!"
   file\write "return \"#{opts.build_version\gsub '"', '\\"'}\"\n"
   file\close!
+
+if opts.build_version and (not opts.no_version_file)
+  if file_exists "#{opts.source}/version.lua"
+    write_version! unless opts.no_overwrite_version
+  else
+    write_version!
 
 opts.author or= conf.releases.author
 opts.description or= conf.releases.description
