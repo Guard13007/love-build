@@ -1,67 +1,96 @@
-local loveReleaseCheck = [[  echo Checking dependencies...
-  if ! dpkg -l libzip-dev &> /dev/null; then
-    echo "Installing libzip-dev..."
-    sudo apt-get update
-    sudo apt-get install libzip-dev -y &> /dev/null
-  fi
-  if ! command -v luarocks &> /dev/null; then
-    echo "Installing LuaRocks..."
-    ROCKSVER=2.4.4      # CHECK FOR NEW VERSION AT https://luarocks.github.io/luarocks/releases
-    sudo apt-get update
-    sudo apt-get install lua5.1 liblua5.1-0-dev zip unzip libreadline-dev libncurses5-dev libpcre3-dev openssl libssl-dev perl make build-essential -y
-    wget https://luarocks.github.io/luarocks/releases/luarocks-$ROCKSVER.tar.gz
-    tar xvf luarocks-$ROCKSVER.tar.gz
-    cd luarocks-$ROCKSVER
-    ./configure
-    make build
-    sudo make install
-    cd ..
-    rm -rf luarocks*
-  fi
-  if ! command -v love-release &> /dev/null; then
-    echo "Installing love-release..."
-    sudo -H luarocks install love-release &> /dev/null
-  fi
-]]
-local moonCheck = [[  echo Checking dependencies for moonscript...
-  if ! command -v moonc &> /dev/null; then
-    echo "Installing moonscript..."
-    sudo -H luarocks install moonscript &> /dev/null
-  fi
-]]
-local mkdebCheck = [[  echo Checking dependencies for making .deb files...
-  if ! dpkg -l fakeroot &> /dev/null; then
-    echo "Installing fakeroot..."
-    sudo apt-get update
-    sudo apt-get install fakeroot -y &> /dev/null
-  fi
-  if ! dpkg -l dpkg-deb &> /dev/null; then
-    echo "Installing dpkg-deb..."
-    sudo apt-get update
-    sudo apt-get install dpkg-deb -y &> /dev/null
-  fi
-]]
-local luajitCheck = [[  echo Checking dependencies for compiling to bytecode...
-  if ! command -v luajit &> /dev/null; then
-    echo "Installing LuaJIT..."
-    sudo apt-get update
-    sudo apt-get install luajit -y &> /dev/null
-  fi
-]]
-local butlerCheck = [[  echo Checking dependencies for butler...
-  if ! command -v butler &> /dev/null; then
-    echo "Installing butler..."
-    wget https://dl.itch.ovh/butler/linux-amd64/head/butler
-    chmod +x ./butler
-    sudo mv ./butler /bin/butler
-    echo "INSTRUCTIONS FOR REMOTE SERVER:"
-    echo " Open the URL provided by butler on your machine to login,"
-    echo " then copy the address it redirects you to back to the terminal."
-    butler login
-  fi
-]]
-local exists
-exists = function(name)
+local version = "v1.0.0"
+local check = setmetatable({
+  ["love-release"] = [[    # note: none of the stdout/stderr redirection works
+    # note: ! command -v luarocks somehow doesn't work
+    set +o errexit   # does not work for some reason
+    if ! dpkg -l libzip-dev &> /dev/null; then
+      echo "Installing libzip-dev (love-release dependency)..."
+      sudo apt-get update &> /dev/null
+      sudo apt-get install libzip-dev -y &> /dev/null
+    fi
+    if ! command -v luarocks &> /dev/null; then
+      echo "Installing LuaRocks (dependency for love-release & love-build)..."
+      ROCKSVER=2.4.4      # CHECK FOR NEW VERSION AT https://luarocks.github.io/luarocks/releases
+      sudo apt-get update &> /dev/null
+      # NOTE: Some of these may not be actually needed for LuaRocks...
+      sudo apt-get install lua5.1 liblua5.1-0-dev zip unzip libreadline-dev libncurses5-dev libpcre3-dev openssl libssl-dev perl make build-essential -y &> /dev/null
+      wget https://luarocks.github.io/luarocks/releases/luarocks-$ROCKSVER.tar.gz &> /dev/null
+      tar xvf luarocks-$ROCKSVER.tar.gz &> /dev/null
+      cd luarocks-$ROCKSVER
+      ./configure &> /dev/null
+      make build &> /dev/null
+      sudo make install &> /dev/null
+      cd ..
+      rm -rf luarocks* &> /dev/null
+    fi
+    if ! command -v love-release &> /dev/null; then
+      echo "Installing love-release..."
+      sudo -H luarocks install love-release &> /dev/null
+    fi
+  ]],
+  moonscript = [[    # doesn't check for LuaRocks, as it should be installed before it gets to this point
+    set +o errexit   # does not work for some reason
+    if ! command -v moonc &> /dev/null; then
+      echo "Installing moonscript..."
+      sudo -H luarocks install moonscript &> /dev/null
+    fi
+  ]],
+  luajit = [[    set +o errexit   # does not work for some reason
+    if ! command -v luajit &> /dev/null; then
+      echo "Installing LuaJIT..."
+      sudo apt-get update
+      sudo apt-get install luajit -y &> /dev/null
+    fi
+  ]],
+  fakeroot = [[    set +o errexit   # does not work for some reason
+    if ! dpkg -l fakeroot &> /dev/null; then
+      echo "Installing fakeroot..."
+      sudo apt-get update
+      sudo apt-get install fakeroot -y &> /dev/null
+    fi
+  ]],
+  ["dpkg-deb"] = [[    set +o errexit   # does not work for some reason
+    if ! dpkg -l dpkg-deb &> /dev/null; then
+      echo "Installing dpkg-deb..."
+      sudo apt-get update
+      sudo apt-get install dpkg-deb -y &> /dev/null
+    fi
+  ]],
+  butler = [[    set +o errexit   # does not work for some reason
+    if ! command -v butler &> /dev/null; then
+      echo "Installing butler..."
+      wget https://dl.itch.ovh/butler/linux-amd64/head/butler &> /dev/null
+      chmod +x ./butler &> /dev/null
+      sudo mv ./butler /bin/butler &> /dev/null
+      echo "INSTRUCTIONS IF ON REMOTE SERVER:"
+      echo " Open the URL provided by butler on your machine to login,"
+      echo " then copy the address it redirects you to back to the terminal."
+      butler login
+    fi
+    ]]
+}, {
+  __call = function(t, ...)
+    for i = 1, select("#", ...) do
+      local name = select(i, ...)
+      local script = t[name]
+      if not (script) then
+        error("Invalid dependency check for \"" .. tostring(name) .. "\"")
+      end
+      print("Checking dependency: " .. tostring(name))
+      print("Warning: Cannot check for dependencies, please verify dependencies yourself.")
+    end
+  end
+})
+local run_safe
+run_safe = function(fn)
+  local success, result = pcall(fn)
+  if success and result then
+    return result
+  end
+  return error("Cannot resolve a dependency, please check the required dependencies and install missing dependencies.")
+end
+local file_exists
+file_exists = function(name)
   do
     local file = io.open(name)
     if file then
@@ -70,230 +99,168 @@ exists = function(name)
     end
   end
 end
-local getopts
-getopts = function(args, ...)
-  if args == nil then
-    args = { }
-  end
-  local opts = { }
-  local ignoreNext = false
-  for flag in pairs(args) do
-    if "table" == type(flag) then
-      args[flag] = setmetatable(flag, {
-        __tostring = function(t)
-          return table.concat(t, "|")
-        end
-      })
-    end
-  end
-  local valueless
-  valueless = function(flag)
-    local arg = args[flag]
-    if not (arg) then
-      for k, v in pairs(args) do
-        if "table" == type(k) then
-          for _index_0 = 1, #k do
-            local a = k[_index_0]
-            if a == flag then
-              arg = v
-              break
-            end
-          end
-        end
-      end
-    end
-    if "table" == type(arg) then
-      return not arg[1]
-    else
-      return not arg
-    end
-  end
-  local required
-  required = function(flag)
-    local arg = args[flag]
-    if not (arg) then
-      for k, v in pairs(args) do
-        if "table" == type(k) then
-          for _index_0 = 1, #k do
-            local a = k[_index_0]
-            if a == flag then
-              arg = v
-              break
-            end
-          end
-        end
-      end
-    end
-    if "table" == type(arg) then
-      return arg[1]
-    else
-      return arg == true
-    end
-  end
-  for i = 1, select("#", ...) do
-    local _continue_0 = false
-    repeat
-      if ignoreNext then
-        ignoreNext = false
-        _continue_0 = true
-        break
-      end
-      local flag = select(i, ...)
-      local value = select(i + 1, ...)
-      local count
-      flag, count = flag:gsub("%-", "")
-      if count > 0 then
-        if not value or valueless(flag) then
-          opts[flag] = true
-        else
-          local _
-          _, count = value:gsub("%-", "")
-          if count > 0 then
-            opts[flag] = true
-          else
-            opts[flag] = value
-            ignoreNext = true
-          end
-        end
-      else
-        opts[#opts + 1] = flag
-      end
-      _continue_0 = true
-    until true
-    if not _continue_0 then
-      break
-    end
-  end
-  for flag in pairs(args) do
-    if required(flag) then
-      exists = false
-      if "table" == type(flag) then
-        for _index_0 = 1, #flag do
-          local key = flag[_index_0]
-          exists = exists or opts[key]
-        end
-      else
-        exists = opts[flag]
-      end
-      if not (exists) then
-        error("Required argument '" .. tostring(flag) .. "' not specified!")
-      end
-    end
-  end
-  return opts
-end
-local opts = getopts({
-  [1] = "Source directory.",
-  [2] = "Builds directory.",
-  ["dry-run"] = {
-    false,
-    "Skip uploading via butler."
-  },
-  [{
-    "v",
-    "version"
-  }] = "Specify version number of build.",
-  [{
-    "l",
-    "love"
-  }] = "Specify LÖVE version to use."
-}, ...)
-opts[1] = opts[1] or "./src"
-opts[2] = opts[2] or "./builds"
-os.execute(loveReleaseCheck)
-if exists(tostring(opts[1]) .. "/main.moon") then
-  os.execute(moonCheck)
-  os.execute("moonc " .. tostring(opts[1]))
-end
-local love = { }
-local config = setmetatable({ }, {
-  __index = function(t, k)
-    t[k] = { }
-    return t[k]
-  end
-})
-if pcall(function()
-  return require(tostring(opts[1]) .. "/conf")
-end) then
-  if love.conf then
-    love.conf(config)
-  end
-end
-pcall(function()
-  local version = require(tostring(opts[1]) .. "/version")
-  config.releases.version = version
+check("love-release")
+local opts = run_safe(function()
+  local argparse = require("argparse")
+  local parser = argparse()
+  parser:name("love-build")
+  parser:description("A simple wrapper for love-release, adding default options and builds for major OSes, extra options, and automated uploading to Itch.io via butler.")
+  parser:argument("source", "Source directory.", "./src")
+  parser:argument("build_dir", "Directory to place builds in.", "./builds")
+  parser:flag("--dry-run", "Skip uploading via butler, even if configured.")
+  parser:option("-v --build-version", "Specify version number of build.")
+  parser:option("-l --love-version", "Specify LÖVE version to use.", "11.1")
+  parser:option({
+    name = "-W",
+    description = "Build Windows executables (32/64 bit). (default: 32)",
+    count = "0-2",
+    args = "0-1",
+    target = "windows",
+    argname = "32|64",
+    default = {
+      {
+        "32"
+      }
+    }
+  })
+  parser:option({
+    name = "-i --include",
+    description = "(NOT IMPLEMENTED) Include files by Lua pattern (alongside executables, not within). (Does not apply to Debian builds.)",
+    count = "*"
+  })
+  parser:option({
+    name = "-x --exclude",
+    description = "Exclude files in source directory by Lua pattern.",
+    count = "*"
+  })
+  parser:flag("-D --debian", "Build a Debian package. (Not recommended.)")
+  parser:flag("-C --no-compile-moonscript", "Do not compile .moon files before building.")
+  parser:flag("-B --no-luajit-bytecode", "Do not compile to LuaJIT bytecode.")
+  parser:flag("-S --no-timestamp", "Do not append a timestamp to builds.")
+  parser:flag("-X --no-mac", "Do not build a Mac OS version.")
+  parser:flag("-L --no-love", "Do not build a version with a .love file (intended for Linux distribution).")
+  parser:flag("--no-overwrite-version", "Do not overwrite version.lua in source directory with a file returning the current version.")
+  parser:flag("--keep-moonscript", "Keep .moon files in builds.")
+  parser:flag("-M", "No effect, Mac OS applications are built by default. (Use --no-mac to disable.)")
+  parser:option("-a --author", "TODO")
+  parser:option({
+    name = "-d --desc",
+    description = "TODO",
+    target = "description"
+  })
+  parser:option("-e --email", "TODO")
+  parser:option("-p --package", "TODO")
+  parser:option("-t --title", "TODO")
+  parser:option("-u", "--url", "TODO")
+  parser:option("-uti", "TODO")
+  parser:option({
+    name = "-I --include-file",
+    description = "Include specific files (alongside executables, not within). (Does not apply to Debian builds.)",
+    count = "*"
+  })
+  parser:flag("--version", "Print version of love-build and exit.")
+  parser:epilog("For more info, see URL")
+  return parser:parse()
 end)
-local loveReleaseOptions = {
-  "-D",
-  "-M",
-  "-W 32",
-  "-b"
-}
-local removeOption
-removeOption = function(name)
-  for k, v in ipairs(loveReleaseOptions) do
-    if v == name then
-      table.remove(loveReleaseOptions, k)
-      break
+if opts.version then
+  print("love-build " .. tostring(version))
+  os.exit(0)
+end
+local options
+options = {
+  add = function(arg)
+    return table.insert(options, arg)
+  end,
+  remove = function(arg)
+    for i = 1, #options do
+      if options[i] == arg then
+        table.remove(options, i)
+        return 
+      end
     end
   end
-end
-if opts.version or opts.v then
-  config.releases.version = opts.version or opts.v
-end
-if config.releases.version then
-  if config.build.timestamp ~= false then
-    config.releases.version = config.releases.version .. tostring(config.releases.version:find("%+") and "." or "+") .. tostring(os.time(os.date("!*t")))
-  end
-  table.insert(loveReleaseOptions, "-v " .. tostring(config.releases.version))
-else
-  removeOption("-D")
-end
-if opts.love or opts.l then
-  config.releases.loveVersion = opts.love or opts.l
-end
-config.releases.loveVersion = config.releases.loveVersion or (config.version or "11.1")
-table.insert(loveReleaseOptions, "-l " .. tostring(config.releases.loveVersion))
-if opts.uti then
-  config.releases.identifier = opts.uti
-end
-config.releases.identifier = config.releases.identifier or (config.identity and config.identity:gsub("%W", ""))
-if config.releases.compile == false then
-  removeOption("-b")
-end
-if config.build.debian == false then
-  removeOption("-D")
-end
-if config.build.macos == false or config.build.osx == false then
-  removeOption("-M")
-end
-if config.build.win64 or config.build.win32 == false then
-  removeOption("-W 32")
-  if config.build.win32 then
-    table.insert(loveReleaseOptions, "-W")
-  else
-    table.insert(loveReleaseOptions, "-W 64")
+}
+if not (opts.no_compile_moonscript) then
+  if file_exists(tostring(opts.source) .. "/main.moon") then
+    check("moonscript")
+    os.execute("moonc " .. tostring(opts.source))
   end
 end
-if opts.version or opts.v or config.build.timestamp ~= false then
-  local file = io.open(tostring(opts[1]) .. "/version.lua", "w")
-  file:write("return \"" .. tostring(config.releases.version) .. "\"\n")
+local conf = run_safe(function()
+  return require("loadconf").parse_file(tostring(opts.source) .. "/conf.lua") or { }
+end)
+conf.releases = conf.releases or { }
+conf.build = conf.build or { }
+if conf.releases.compile == false or not opts.no_luajit_bytecode then
+  check("luajit")
+  options.add("-b")
+end
+opts.build_version = opts.build_version or conf.releases.version
+local success
+success, version = pcall(function()
+  return require(tostring(opts.source) .. "/version")
+end)
+if success then
+  opts.build_version = opts.build_version or version
+end
+if opts.debian and opts.build_version and (not conf.build.debian) then
+  check("fakeroot")
+  check("dpkg-deb")
+  options.add("-D")
+end
+opts.love_version = opts.love_version or conf.releases.loveVersion
+opts.love_version = opts.love_version or conf.version
+options.add("-l " .. tostring(opts.love_version))
+opts.no_timestamp = not conf.build.timestamp
+if opts.build_version and not opts.no_timestamp then
+  opts.build_version = opts.build_version .. tostring(opts.build_version:find("%+") and "." or "+") .. tostring(os.time(os.date("!*t")))
+end
+if opts.build_version then
+  options.add("-v " .. tostring(opts.build_version))
+end
+if (not opts.no_overwrite_version) and opts.build_version and file_exists(tostring(opts.source) .. "/version.lua") then
+  local file = assert(io.open(tostring(opts.source) .. "/version.lua"), "Unable to open " .. tostring(opts.source) .. "/version.lua to update version information!")
+  file:write("return \"" .. tostring(opts.build_version:gsub('"', '\\"')) .. "\"\n")
   file:close()
 end
-local optionSet
-optionSet = function(name)
-  for _index_0 = 1, #loveReleaseOptions do
-    local option = loveReleaseOptions[_index_0]
-    if option == name then
-      return true
-    end
+if not (opts.keep_moonscript) then
+  options.add("-x .-%.moon$")
+end
+if opts.exclude then
+  local _list_0 = opts.exclude
+  for _index_0 = 1, #_list_0 do
+    local value = _list_0[_index_0]
+    options.add("-x " .. tostring(value))
   end
 end
-if optionSet("-D") then
-  os.execute(mkdebCheck)
+if conf.releases.excludeFileList then
+  local _list_0 = conf.releases.excludeFileList
+  for _index_0 = 1, #_list_0 do
+    local value = _list_0[_index_0]
+    options.add("-x " .. tostring(value))
+  end
 end
-if optionSet("-b") then
-  os.execute(luajitCheck)
+local w32 = conf.build.win32
+local w64 = conf.build.win64
+for _, v in pairs(opts.windows) do
+  if v[1] == "32" and w32 == nil then
+    w32 = true
+  elseif v[1] == "64" and w64 == nil then
+    w64 = true
+  end
 end
-local command = "love-release " .. tostring(table.concat(loveReleaseOptions, " ")) .. " \"" .. tostring(opts[2]) .. "\" \"" .. tostring(opts[1]) .. "\""
-return print(command)
+if w32 then
+  options.add("-W 32")
+end
+if w64 then
+  options.add("-W 64")
+end
+if conf.build.macos ~= false and conf.build.osx ~= false and not opts.no_mac then
+  options.add("-M")
+end
+options.add(opts.build_dir)
+options.add(opts.source)
+print("love-release " .. tostring(table.concat(options, " ")))
+if not (opts.dry_run) then
+  return nil
+end
