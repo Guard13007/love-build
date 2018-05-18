@@ -23,21 +23,23 @@ Example config:
 
 ```lua
 function love.conf(t)
-  -- TODO I will finish writing this with a "complete" conf soon
-  {
-    title = 'src',
-    package = 'src',
+  t.identity = "game"
+  t.version = "11.1"
+  t.build = {} -- TODO finish writing this
+  t.releases = {
+    title = 'Game Name',
+    package = 'game',
     loveVersion = '11.1',
-    version = nil,
-    author = nil,
-    email = nil,
-    description = nil,
-    homepage = nil,
-    identifier = 'fuck.me',
-    excludeFileList = { ''} ,
+    version = "v1.2.0,
+    author = "Full Name",
+    email = "someone@example.com",
+    description = "A game that does things.",
+    homepage = "https://example.com/",
+    identifier = 'com.example.game',
+    excludeFileList = { '.-%.md' },
     compile = true,
-    projectDirectory = '/home/simplexdev/Documents/love-build/test/./src',
-    releaseDirectory = '/home/simplexdev/Documents/love-build/test/./builds',
+    projectDirectory = './src',
+    releaseDirectory = './builds'
   }
 end
 ```
