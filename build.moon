@@ -119,7 +119,7 @@ opts = run_safe ->
     parser\flag "--skip-butler", "Skip uploading via butler, even if configured."
 
   parser\option "-v --build-version", "Specify version number of build."
-  parser\option "-l --love-version", "Specify LÖVE version to use.", "11.1"
+  parser\option "-l --love-version", "Specify LÖVE version to use. (default: 11.1)"
   parser\option
     name: "-W"
     description: "Build Windows executables (32/64 bit). (default: 32)"
@@ -163,7 +163,7 @@ opts = run_safe ->
     parser\option "-p --package", "Package/Executable/Command name.",
     parser\option "-t --title", "Project title.",
     parser\option "-u --url", "Project homepage URL.",
-    parser\option "-uti", "Project Uniform Type Identifier (it's a Mac thing)."
+    parser\option "--uti", "Project Uniform Type Identifier (it's a Mac thing)."
 
   parser\option
     name: "-I --include-file"
@@ -199,12 +199,14 @@ unless opts.no_compile_moonscript
   if file_exists "#{opts.source}/main.moon"
     check "moonscript"
     os.execute "moonc #{opts.source}"
+    -- NOTE no way to check if moonc was successful right now :/
+    --      so we just assume it is for now :\
 
 conf = run_safe -> require("loadconf").parse_file("#{opts.source}/conf.lua") or {}
 conf.releases or= {}
 conf.build or= {}
 
-if conf.releases.compile != false or not opts.no_luajit_bytecode
+if conf.releases.compile != false and not opts.no_luajit_bytecode
   check "luajit"
   options.add "-b"
 
@@ -219,6 +221,7 @@ if opts.debian and opts.build_version and (not conf.build.debian)
 
 opts.love_version or= conf.releases.loveVersion
 opts.love_version or= conf.version
+opts.love_version or= "11.1"
 options.add "-l #{opts.love_version}"
 
 opts.no_timestamp = not conf.build.timestamp
@@ -244,9 +247,8 @@ opts.email or= conf.releases.email
 opts.package or= conf.releases.package
 opts.title or= conf.releases.title
 opts.url or= conf.releases.homepage
--- uti not specifiable in conf ?
-
 opts.uti or= conf.releases.identifier
+
 unless opts.uti
   opts.uti = conf.releases.homepage or conf.releases.author or conf.releases.email
   part2 = conf.releases.package or conf.releases.title or conf.identity
@@ -286,7 +288,7 @@ options.add "-e #{opts.email}" if opts.email
 options.add "-p #{opts.package}" if opts.package
 options.add "-t #{opts.title}" if opts.title
 options.add "-u #{opts.url}" if opts.url
-options.add "-uti #{opts.uti}" if opts.uti
+options.add "--uti #{opts.uti}" if opts.uti
 
 options.add opts.build_dir
 options.add opts.source
@@ -297,6 +299,10 @@ if opts.dry_run
   os.exit 0
 else
   os.execute command
+  -- NOTE no way to check if love-release was successful :/
+  --      for now, assuming it was successful
+
+-- TODO need to add option to dry-run and show butler commands as well
 
 -- TODO implement -I here
 -- -I <- conf.build.includeFiles

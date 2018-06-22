@@ -109,7 +109,7 @@ local opts = run_safe(function()
   parser:argument("build_dir", "Directory to place builds in.", "./builds")
   parser:group("Testing", parser:flag("--dry-run", "Do everything up to calling love-release, print the command to be sent to love-release, and stop."), parser:flag("--skip-butler", "Skip uploading via butler, even if configured."))
   parser:option("-v --build-version", "Specify version number of build.")
-  parser:option("-l --love-version", "Specify LÖVE version to use.", "11.1")
+  parser:option("-l --love-version", "Specify LÖVE version to use. (default: 11.1)")
   parser:option({
     name = "-W",
     description = "Build Windows executables (32/64 bit). (default: 32)",
@@ -147,7 +147,7 @@ local opts = run_safe(function()
     name = "-d --desc",
     description = "Project description.",
     target = "description"
-  }), parser:option("-e --email", "Author's email."), parser:option("-p --package", "Package/Executable/Command name."), parser:option("-t --title", "Project title."), parser:option("-u --url", "Project homepage URL."), parser:option("-uti", "Project Uniform Type Identifier (it's a Mac thing)."))
+  }), parser:option("-e --email", "Author's email."), parser:option("-p --package", "Package/Executable/Command name."), parser:option("-t --title", "Project title."), parser:option("-u --url", "Project homepage URL."), parser:option("--uti", "Project Uniform Type Identifier (it's a Mac thing)."))
   parser:option({
     name = "-I --include-file",
     description = "Include specific files (alongside executables, not within). (Does not apply to Debian builds.)",
@@ -192,7 +192,7 @@ local conf = run_safe(function()
 end)
 conf.releases = conf.releases or { }
 conf.build = conf.build or { }
-if conf.releases.compile ~= false or not opts.no_luajit_bytecode then
+if conf.releases.compile ~= false and not opts.no_luajit_bytecode then
   check("luajit")
   options.add("-b")
 end
@@ -211,6 +211,7 @@ if opts.debian and opts.build_version and (not conf.build.debian) then
 end
 opts.love_version = opts.love_version or conf.releases.loveVersion
 opts.love_version = opts.love_version or conf.version
+opts.love_version = opts.love_version or "11.1"
 options.add("-l " .. tostring(opts.love_version))
 opts.no_timestamp = not conf.build.timestamp
 if opts.build_version and not opts.no_timestamp then
@@ -307,7 +308,7 @@ if opts.url then
   options.add("-u " .. tostring(opts.url))
 end
 if opts.uti then
-  options.add("-uti " .. tostring(opts.uti))
+  options.add("--uti " .. tostring(opts.uti))
 end
 options.add(opts.build_dir)
 options.add(opts.source)

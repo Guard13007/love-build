@@ -46,7 +46,7 @@ function love.conf(t)
     title = 'Game Name',
     package = 'game',
     loveVersion = '11.1',
-    version = "v1.2.0,
+    version = "v1.2.0",
     author = "Full Name",
     email = "someone@example.com",
     description = "A game that does things.",
