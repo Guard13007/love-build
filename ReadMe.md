@@ -11,6 +11,22 @@ Either copy `build.lua` into the same directory as your project and use
 install it using LuaRocks (`luarocks install love-build`) and run `love-build`.
 (NOTE: NOT ON LUAROCKS JUST YET!)
 
+### Dependencies
+
+This wrapper is supposed to be able to detect and install needed dependencies
+itself, however, that is not functioning correctly right now...
+
+- apt-get
+  - libzip-dev (through apt-get, if encountering an error while installing love-release)
+  - luajit (unless you disable compiling)
+  - fakeroot & dpkg-deb (if you are using -D (not recommended))
+- LuaRocks
+  - love-release
+  - argparse
+  - loadconf
+  - moonscript (if a project is using moonscript)
+- butler (unless you are not using butler)
+
 ## Usage
 
 The most basic usage involves using arguments, but the easier option is to
